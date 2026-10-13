@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="PureAir — Hyperlocal street air quality monitoring and interactive eco-routing navigation. Locate start and destination points directly on the map to compare the cleanest green route vs shortest red route."
+    />
+    <title>PureAir — Street-Level AQI & Map Eco-Routing</title>
+    <!-- Leaflet CSS -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <!-- Inter Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <!-- Top Floating Navbar -->
+    <header class="navbar-glass">
+      <div class="nav-brand">
+        <div class="brand-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/>
+            <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-name">PureAir</span>
+          <span class="brand-tag">HYPERLOCAL AIR & ECO-ROUTING</span>
+        </div>
+      </div>
+
+      <!-- Mode Switcher -->
+      <nav class="nav-modes" role="tablist">
+        <button id="nav-mode-route" class="mode-pill active" role="tab" aria-selected="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a4.5 4.5 0 0 0 0-9H7a4 4 0 0 1 0-8h11"/><circle cx="18" cy="5" r="3"/>
+          </svg>
+          <span>Map Eco-Route</span>
+          <span class="glow-dot"></span>
+        </button>
+        <button id="nav-mode-street" class="mode-pill" role="tab" aria-selected="false">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>
+          </svg>
+          <span>Street AQI Explorer</span>
+        </button>
+      </nav>
+
+      <!-- Quick City Jumper -->
+      <div class="nav-cities">
+        <button class="city-btn active" data-lat="12.9716" data-lon="77.5946" data-name="Bengaluru, India">Bengaluru</button>
+        <button class="city-btn" data-lat="28.6139" data-lon="77.2090" data-name="Delhi, India">Delhi</button>
+        <button class="city-btn" data-lat="40.7128" data-lon="-74.0060" data-name="New York, USA">New York</button>
+        <button class="city-btn" data-lat="51.5074" data-lon="-0.1278" data-name="London, UK">London</button>
+      </div>
+    </header>
+
+    <!-- Main Viewport Canvas (Full-Screen Map) -->
+    <div class="map-viewport">
+      <div id="map" class="map-container"></div>
+
+      <!-- Floating Map Helper Instruction Banner -->
+      <div class="map-instruction-pill" id="map-instruction-pill">
+        <div class="instruction-dot pulse"></div>
+        <span id="map-instruction-text">Click anywhere on the map to place <strong>Start Point (A)</strong></span>
+        <button type="button" id="btn-reset-map-points" class="instruction-reset-btn" title="Clear points & restart">Reset</button>
+      </div>
+
+      <!-- Floating Legend HUD -->
+      <div class="map-floating-legend">
+        <div class="legend-chip">
+          <span class="legend-swatch swatch-green"></span>
+          <span class="legend-text"><strong>Cleanest Route</strong> (Lowest PM2.5)</span>
+        </div>
+        <div class="legend-chip">
+          <span class="legend-swatch swatch-red"></span>
+          <span class="legend-text"><strong>Shortest Route</strong> (Heavy Traffic)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Drawer Toggle Button -->
+    <button id="btn-toggle-drawer" class="btn-drawer-toggle" title="Toggle Side Panel">
+      <svg id="icon-toggle-drawer" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 18l-6-6 6-6"/>
+      </svg>
+    </button>
+
+    <!-- Floating Glassmorphic Control Drawer (Left) -->
+    <aside class="floating-drawer" id="floating-drawer">
+      
+      <!-- ========================================== -->
+      <!-- VIEW 1: MAP ROUTE PLANNER (Primary)       -->
+      <!-- ========================================== -->
+      <div id="drawer-view-route" class="drawer-view active">
+        <div class="drawer-header">
+          <div>
+            <h2 class="drawer-title">Eco-Route Navigation</h2>
+            <p class="drawer-caption">Locate Start & Destination on the map to compare clean vs direct paths.</p>
+          </div>
+          <div class="live-status-chip">
+            <span class="pulse-emerald"></span> Interactive Map
+          </div>
+        </div>
+
+        <!-- On-Map Pin Selectors Card -->
+        <div class="route-point-cards">
+          <!-- Point A -->
+          <div class="point-card start-point-card active" id="card-point-a">
+            <div class="point-badge-wrap">
+              <span class="pin-letter letter-a">A</span>
+              <div class="point-meta">
+                <span class="point-tag">STARTING POINT</span>
+                <strong class="point-address" id="text-point-a">Click on map or search…</strong>
+              </div>
+            </div>
+            <button type="button" id="btn-reselect-a" class="btn-locate-map" title="Click to reposition Point A on map">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+              <span>Locate on Map</span>
+            </button>
+          </div>
+
+          <!-- Swap Points Divider -->
+          <div class="route-swap-row">
+            <div class="swap-line"></div>
+            <button type="button" id="btn-swap-points" class="btn-swap" title="Swap Origin and Destination">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M7 16V4M7 4L3 8M7 4L11 8M17 8V20M17 20L21 16M17 20L13 16"/>
+              </svg>
+            </button>
+            <div class="swap-line"></div>
+          </div>
+
+          <!-- Point B -->
+          <div class="point-card dest-point-card" id="card-point-b">
+            <div class="point-badge-wrap">
+              <span class="pin-letter letter-b">B</span>
+              <div class="point-meta">
+                <span class="point-tag">DESTINATION</span>
+                <strong class="point-address" id="text-point-b">Click on map or search…</strong>
+              </div>
+            </div>
+            <button type="button" id="btn-reselect-b" class="btn-locate-map" title="Click to reposition Point B on map">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+              <span>Locate on Map</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Optional Address Search Bar for users who want to search -->
+        <div class="quick-address-search">
+          <input
+            type="text"
+            id="input-route-search"
+            placeholder="Or type an address / landmark to place pin…"
+            autocomplete="off"
+          />
+          <button type="button" id="btn-route-search-go" class="btn-search-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Action Button -->
+        <button type="button" id="btn-run-routing" class="btn-primary-action">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
+          <span id="btn-run-routing-text">Calculate Cleanest vs Shortest Route</span>
+        </button>
+
+        <p class="status-msg" id="route-error-msg" role="status" aria-live="polite"></p>
+
+        <!-- ROUTE COMPARISON RESULTS (Appears dynamically) -->
+        <div id="route-results-card" class="route-results-section" hidden>
+          <!-- Clean Air Advantage Callout -->
+          <div class="advantage-hero">
+            <div class="advantage-badge-glow">🍃</div>
+            <div class="advantage-copy">
+              <span class="advantage-upto" id="adv-pct">35.4% LESS EXPOSURE</span>
+              <strong class="advantage-headline" id="adv-summary">Cleanest Route avoids major arterial highway exhaust!</strong>
+            </div>
+          </div>
+
+          <!-- Dual Route Comparison Cards -->
+          <div class="route-cards-stack">
+            <!-- Cleanest (Green) -->
+            <article class="route-tile tile-cleanest active-route-tile" id="tile-cleanest">
+              <div class="tile-top">
+                <div class="tile-brand">
+                  <span class="indicator-dot dot-green"></span>
+                  <strong class="tile-title">Cleanest Route (Green)</strong>
+                </div>
+                <span class="pill-cleanest">🍃 Recommended</span>
+              </div>
+              <div class="tile-metrics-grid">
+                <div class="metric-block">
+                  <span class="metric-label">DISTANCE</span>
+                  <strong class="metric-value" id="res-cleanest-dist">— km</strong>
+                </div>
+                <div class="metric-block">
+                  <span class="metric-label">TIME</span>
+                  <strong class="metric-value" id="res-cleanest-time">— min</strong>
+                </div>
+                <div class="metric-block highlight-emerald">
+                  <span class="metric-label">AVG PM2.5</span>
+                  <strong class="metric-value" id="res-cleanest-pm">— µg/m³</strong>
+                </div>
+                <div class="metric-block highlight-emerald">
+                  <span class="metric-label">AQI</span>
+                  <strong class="metric-value" id="res-cleanest-aqi">—</strong>
+                </div>
+              </div>
+              <p class="tile-note" id="res-cleanest-note">Navigates tree-lined residential layouts & secondary streets.</p>
+            </article>
+
+            <!-- Shortest (Red) -->
+            <article class="route-tile tile-shortest" id="tile-shortest">
+              <div class="tile-top">
+                <div class="tile-brand">
+                  <span class="indicator-dot dot-red"></span>
+                  <strong class="tile-title">Shortest Route (Red)</strong>
+                </div>
+                <span class="pill-shortest">⚠️ Heavy Traffic</span>
+              </div>
+              <div class="tile-metrics-grid">
+                <div class="metric-block">
+                  <span class="metric-label">DISTANCE</span>
+                  <strong class="metric-value" id="res-shortest-dist">— km</strong>
+                </div>
+                <div class="metric-block">
+                  <span class="metric-label">TIME</span>
+                  <strong class="metric-value" id="res-shortest-time">— min</strong>
+                </div>
+                <div class="metric-block highlight-rose">
+                  <span class="metric-label">AVG PM2.5</span>
+                  <strong class="metric-value" id="res-shortest-pm">— µg/m³</strong>
+                </div>
+                <div class="metric-block highlight-rose">
+                  <span class="metric-label">AQI</span>
+                  <strong class="metric-value" id="res-shortest-aqi">—</strong>
+                </div>
+              </div>
+              <p class="tile-note" id="res-shortest-note">Direct arterial highway corridor with elevated exhaust emissions.</p>
+            </article>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- VIEW 2: STREET AQI EXPLORER                -->
+      <!-- ========================================== -->
+      <div id="drawer-view-street" class="drawer-view" hidden>
+        <div class="drawer-header">
+          <div>
+            <h2 class="drawer-title">Street-Level Air Quality</h2>
+            <p class="drawer-caption">Click any road on the map to inspect its real-time traffic and canopy air quality.</p>
+          </div>
+        </div>
+
+        <!-- Search Bar -->
+        <form id="street-search-form" class="street-search-box">
+          <input
+            id="street-search-input"
+            type="search"
+            placeholder="Search any street, landmark, or city…"
+            autocomplete="off"
+            required
+          />
+          <button type="submit" id="street-search-btn" class="btn-search-pill">Search</button>
+        </form>
+
+        <!-- Hero Street AQI Meter Card -->
+        <div class="street-meter-card">
+          <div class="meter-top">
+            <span class="meter-road-name" id="meter-road-name">MG Road Corridor</span>
+            <span class="meter-category-badge" id="meter-category-badge">Satisfactory</span>
+          </div>
+          <div class="meter-middle">
+            <div class="meter-aqi-num" id="meter-aqi-num">65</div>
+            <div class="meter-aqi-meta">
+              <span class="meta-label">STREET-LEVEL AQI</span>
+              <span class="meta-standard" id="meter-standard">CPCB Standard</span>
+            </div>
+          </div>
+          <!-- Microenvironment Tag -->
+          <div class="microenv-pill-box">
+            <span class="microenv-icon-box" id="street-micro-icon">🚗</span>
+            <div class="microenv-text-group">
+              <strong id="street-micro-title">Primary Arterial Corridor</strong>
+              <p id="street-micro-desc">Heavy commercial and vehicular tailpipe traffic elevated PM2.5 by +28%.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Breakdown Metric Blocks -->
+        <div class="street-breakdown-grid">
+          <div class="breakdown-card">
+            <span class="breakdown-label">STREET PM2.5</span>
+            <strong class="breakdown-val" id="val-street-pm">— µg/m³</strong>
+          </div>
+          <div class="breakdown-card">
+            <span class="breakdown-label">BACKGROUND</span>
+            <strong class="breakdown-val" id="val-base-pm">— µg/m³</strong>
+          </div>
+          <div class="breakdown-card">
+            <span class="breakdown-label">TRAFFIC IMPACT</span>
+            <strong class="breakdown-val text-red" id="val-traffic-pct">—</strong>
+          </div>
+          <div class="breakdown-card">
+            <span class="breakdown-label">24H MEAN</span>
+            <strong class="breakdown-val" id="val-24h-pm">— µg/m³</strong>
+          </div>
+        </div>
+
+        <!-- Nearby Stations (if available) -->
+        <div class="stations-accordion" id="stations-accordion" hidden>
+          <span class="stations-title">Nearby Reference Stations</span>
+          <ul class="stations-mini-list" id="stations-mini-list"></ul>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Leaflet JS -->
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
