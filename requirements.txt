@@ -1,0 +1,17 @@
+# Spatial & Data Processing
+pandas
+numpy
+geopandas
+shapely
+osmnx
+scikit-learn
+scipy
+
+# Machine Learning
+xgboost
+lightgbm
+
+# API & Backend
+requests
+fastapi
+uvicorn
